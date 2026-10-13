@@ -87,7 +87,11 @@ pub fn fetch_pinned_message_text(
     let url = format!("{}/bot{}/getChat", base_url.trim_end_matches('/'), token);
     let normalized_chat_id = normalize_chat_id(chat_id);
     let form = [("chat_id", normalized_chat_id.as_ref())];
-    let response = client.post(&url).form(&form).send()?;
+    let response = client
+        .post(&url)
+        .form(&form)
+        .send()
+        .map_err(|error| error.without_url())?;
     let body = response.text()?;
     let raw: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| format!("Failed to parse Telegram getChat response: {e}: {body}"))?;

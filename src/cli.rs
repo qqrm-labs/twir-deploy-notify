@@ -104,6 +104,18 @@ pub fn main() -> std::io::Result<()> {
     let production_credentials =
         read_credentials_pair(("PROD_BOT_TOKEN", "PROD_CHAT_ID"), "production Telegram")?;
 
+    if let Some(path) = env::var_os("TWIR_DELIVERY_STATE") {
+        let progress = crate::shared::delivery_progress::Progress::load(
+            Path::new(&path),
+            &posts,
+            &production_credentials.chat_id,
+        )?;
+        if progress.complete() {
+            log::info!("Every production part is already confirmed; skipping delivery");
+            return Ok(());
+        }
+    }
+
     log::debug!("production chat id: {}", production_credentials.chat_id);
     pin_guard::enforce_pin_guard(
         &base,

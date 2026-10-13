@@ -742,6 +742,31 @@ pub fn send_to_telegram(
     use_markdown: bool,
     pin_first: bool,
 ) -> Result<DeliveryReport, Box<dyn std::error::Error + Send + Sync>> {
+    let progress_path = if pin_first {
+        std::env::var_os("TWIR_DELIVERY_STATE")
+    } else {
+        None
+    };
+    send_with_progress(
+        posts,
+        base_url,
+        token,
+        chat_id,
+        use_markdown,
+        pin_first,
+        progress_path.as_deref().map(Path::new),
+    )
+}
+
+fn send_with_progress(
+    posts: &[String],
+    base_url: &str,
+    token: &str,
+    chat_id: &str,
+    use_markdown: bool,
+    pin_first: bool,
+    progress_path: Option<&Path>,
+) -> Result<DeliveryReport, Box<dyn std::error::Error + Send + Sync>> {
     if use_markdown {
         for (i, post) in posts.iter().enumerate() {
             validate_telegram_markdown(post)
@@ -752,10 +777,19 @@ pub fn send_to_telegram(
     let client = Client::new();
     let chat_id = normalize_chat_id(chat_id);
     info!("Sending {} posts", posts.len());
-    let mut pin_sent = false;
-    let mut confirmed = 0usize;
-    let mut message_ids = Vec::with_capacity(posts.len());
+    let mut progress = if let Some(path) = progress_path {
+        let progress = super::delivery_progress::Progress::load(path, posts, chat_id.as_ref())?;
+        progress.save(path)?;
+        progress
+    } else {
+        super::delivery_progress::Progress::new(posts, chat_id.as_ref())
+    };
+    let mut confirmed = progress.message_ids.len();
+    let mut message_ids = progress.message_ids.clone();
     for (i, post) in posts.iter().enumerate() {
+        if i < confirmed {
+            continue;
+        }
         info!("Posting {}/{} ({} chars)", i + 1, posts.len(), post.len());
         let url = format!(
             "{}/bot{}/sendMessage",
@@ -775,9 +809,17 @@ pub fn send_to_telegram(
         }
         form.push(("disable_web_page_preview", "true"));
 
-        let resp = client.post(&url).form(&form).send()?;
+        if let Some(path) = progress_path {
+            crate::checkpoint::begin(path, &format!("{}:{i}", progress.digest))?;
+        }
+
+        let resp = client
+            .post(&url)
+            .form(&form)
+            .send()
+            .map_err(|error| error.without_url())?;
         let status = resp.status();
-        let body = resp.text()?;
+        let body = resp.text().map_err(|error| error.without_url())?;
         debug!("Telegram response {status}: {body}");
         let raw: serde_json::Value = serde_json::from_str(&body)
             .map_err(|e| format!("Failed to parse Telegram response: {e}: {body}"))?;
@@ -814,11 +856,11 @@ pub fn send_to_telegram(
         {
             debug!("Received message_id {id}");
             message_ids.push(id);
-            if pin_first && !pin_sent && i == 0 {
-                pin_first_message(&client, base_url, token, chat_id.as_ref(), id)?;
-                pin_sent = true;
+            if let Some(path) = progress_path {
+                progress.message_ids.push(id);
+                progress.confirm(path)?;
             }
-        } else if pin_first && i == 0 {
+        } else {
             return Err("Telegram response missing message_id".into());
         }
         confirmed += 1;
@@ -826,6 +868,13 @@ pub fn send_to_telegram(
         if i + 1 < posts.len() {
             thread::sleep(Duration::from_millis(TELEGRAM_DELAY_MS));
         }
+    }
+    // The guard must never see this issue pinned before all parts are durable.
+    if pin_first
+        && let Some(id) = message_ids.first()
+        && let Err(error) = pin_first_message(&client, base_url, token, chat_id.as_ref(), *id)
+    {
+        warn!("All posts delivered, but pinning failed: {error}");
     }
     Ok(DeliveryReport {
         confirmed,
@@ -850,9 +899,13 @@ fn pin_first_message(
     debug!("Pinning message {message_id} via /pinChatMessage");
     let msg_id_str = message_id.to_string();
     let pin_form = vec![("chat_id", chat_id), ("message_id", msg_id_str.as_str())];
-    let resp = client.post(&pin_url).form(&pin_form).send()?;
+    let resp = client
+        .post(&pin_url)
+        .form(&pin_form)
+        .send()
+        .map_err(|error| error.without_url())?;
     let status = resp.status();
-    let body = resp.text()?;
+    let body = resp.text().map_err(|error| error.without_url())?;
     debug!("Telegram pin response {status}: {body}");
     let pin_data: TelegramResponse = serde_json::from_str(&body)
         .map_err(|e| format!("Failed to parse Telegram pin response: {e}: {body}"))?;
@@ -890,15 +943,15 @@ fn remove_pin_notification(
     last_message_id: Option<i64>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut candidates = Vec::new();
-    if let Some(id) = last_message_id {
-        candidates.push(id + 1);
-    }
 
     let base = base_url.trim_end_matches('/');
     let updates_url = format!("{}/bot{}/getUpdates", base, token);
-    let resp = client.get(&updates_url).send()?;
+    let resp = client
+        .get(&updates_url)
+        .send()
+        .map_err(|error| error.without_url())?;
     let status = resp.status();
-    let body = resp.text()?;
+    let body = resp.text().map_err(|error| error.without_url())?;
     debug!("Telegram updates response {status}: {body}");
     match serde_json::from_str::<serde_json::Value>(&body) {
         Ok(data) => {
@@ -913,7 +966,11 @@ fn remove_pin_notification(
                         if !chat_matches(message, normalized) {
                             continue;
                         }
-                        if message.get("pinned_message").is_some()
+                        if last_message_id.is_some()
+                            && message
+                                .pointer("/pinned_message/message_id")
+                                .and_then(|value| value.as_i64())
+                                == last_message_id
                             && let Some(id) = message.get("message_id").and_then(|v| v.as_i64())
                             && !candidates.contains(&id)
                         {
@@ -954,9 +1011,13 @@ fn try_delete_message(
         ("chat_id", chat_id),
         ("message_id", message_id_string.as_str()),
     ];
-    let resp = client.post(&delete_url).form(&delete_form).send()?;
+    let resp = client
+        .post(&delete_url)
+        .form(&delete_form)
+        .send()
+        .map_err(|error| error.without_url())?;
     let status = resp.status();
-    let body = resp.text()?;
+    let body = resp.text().map_err(|error| error.without_url())?;
     debug!("Telegram delete response {status}: {body}");
     let delete_data: TelegramResponse = serde_json::from_str(&body)
         .map_err(|e| format!("Failed to parse Telegram delete response: {e}: {body}"))?;
@@ -1001,6 +1062,136 @@ mod tests {
     use super::*;
     use crate::parser::parse_sections;
     use std::fs;
+
+    #[test]
+    fn failed_batch_resumes_only_unconfirmed_parts_and_pins_after_completion() {
+        use mockito::Matcher;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("progress.json");
+        let posts = vec!["first".into(), "second".into()];
+        let mut server = mockito::Server::new();
+        let first = server
+            .mock("POST", "/botTOKEN/sendMessage")
+            .match_body(Matcher::UrlEncoded("text".into(), "first".into()))
+            .with_body(r#"{"ok":true,"result":{"message_id":41}}"#)
+            .expect(1)
+            .create();
+        let second_failed = server
+            .mock("POST", "/botTOKEN/sendMessage")
+            .match_body(Matcher::UrlEncoded("text".into(), "second".into()))
+            .with_status(500)
+            .with_body(r#"{"ok":false,"description":"failure"}"#)
+            .expect(1)
+            .create();
+        let pin = server
+            .mock("POST", "/botTOKEN/pinChatMessage")
+            .expect(0)
+            .create();
+        assert!(
+            send_with_progress(
+                &posts,
+                &server.url(),
+                "TOKEN",
+                "42",
+                false,
+                true,
+                Some(&path)
+            )
+            .is_err()
+        );
+        first.assert();
+        second_failed.assert();
+        pin.assert();
+        assert_eq!(
+            super::super::delivery_progress::Progress::load(&path, &posts, "42")
+                .unwrap()
+                .message_ids,
+            vec![41]
+        );
+        assert!(
+            send_with_progress(
+                &posts,
+                &server.url(),
+                "TOKEN",
+                "42",
+                false,
+                true,
+                Some(&path)
+            )
+            .is_err()
+        );
+        first.assert();
+        second_failed.assert();
+        // The mocked rejection was reconciled; no second message was sent.
+        fs::remove_file(path.with_extension("pending")).unwrap();
+        second_failed.remove();
+        pin.remove();
+        let second = server
+            .mock("POST", "/botTOKEN/sendMessage")
+            .match_body(Matcher::UrlEncoded("text".into(), "second".into()))
+            .with_body(r#"{"ok":true,"result":{"message_id":42}}"#)
+            .expect(1)
+            .create();
+        let pin = server
+            .mock("POST", "/botTOKEN/pinChatMessage")
+            .with_body(r#"{"ok":true,"result":true}"#)
+            .expect(1)
+            .create();
+        let updates = server.mock("GET", "/botTOKEN/getUpdates")
+            .with_body(r#"{"ok":true,"result":[{"message":{"message_id":42,"chat":{"id":-10042},"text":"ordinary message"}},{"message":{"message_id":43,"chat":{"id":-10042},"pinned_message":{"message_id":999}}},{"message":{"message_id":44,"chat":{"id":-10042},"pinned_message":{"message_id":41}}}]}"#).create();
+        let wrong_delete = server
+            .mock("POST", "/botTOKEN/deleteMessage")
+            .match_body(Matcher::UrlEncoded("message_id".into(), "42".into()))
+            .expect(0)
+            .create();
+        let correct_delete = server
+            .mock("POST", "/botTOKEN/deleteMessage")
+            .match_body(Matcher::UrlEncoded("message_id".into(), "44".into()))
+            .with_body(r#"{"ok":true,"result":true}"#)
+            .expect(1)
+            .create();
+        let report = send_with_progress(
+            &posts,
+            &server.url(),
+            "TOKEN",
+            "42",
+            false,
+            true,
+            Some(&path),
+        )
+        .unwrap();
+        assert!(report.all_confirmed(2));
+        assert_eq!(report.message_ids, vec![41, 42]);
+        first.assert();
+        second.assert();
+        pin.assert();
+        updates.assert();
+        wrong_delete.assert();
+        correct_delete.assert();
+    }
+
+    #[test]
+    fn checkpoint_failure_prevents_any_send() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let send = server
+            .mock("POST", "/botTOKEN/sendMessage")
+            .expect(0)
+            .create();
+        assert!(
+            send_with_progress(
+                &["first".into()],
+                &server.url(),
+                "TOKEN",
+                "42",
+                false,
+                true,
+                Some(dir.path())
+            )
+            .is_err()
+        );
+        send.assert();
+    }
 
     #[test]
     fn split_posts_basic() {

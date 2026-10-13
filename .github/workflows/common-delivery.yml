@@ -42,6 +42,9 @@ jobs:
     concurrency:
       group: twir-common-delivery-${{ inputs.scope }}
       cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
     env:
       CARGO_TERM_PROGRESS_WHEN: never
       RUST_LOG: ${{ inputs.rust_log }}
@@ -49,22 +52,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v2
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2
         with:
           cache: false
           rustflags: ""
 
       - name: Cache Rust workspace
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           cache-bin: false
           cache-workspace-crates: true
-          shared-key: delivery
+          shared-key: delivery-portable
           workspaces: |
             . -> target
 
@@ -129,8 +132,9 @@ jobs:
           echo "::warning::No recent run yielded a last_sent marker; continuing without cached state." >&2
 
       - name: Checkout TWIR
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: rust-lang/this-week-in-rust
           path: twir
           fetch-depth: 1
@@ -143,7 +147,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          latest_post=$(ls twir/content/*-this-week-in-rust*.md | sort | tail -n 1)
+          posts=(twir/content/*-this-week-in-rust*.md)
+          latest_post="${posts[-1]}"
+          test -f "$latest_post"
           echo "latest_post=$latest_post" >> "$GITHUB_OUTPUT"
 
           check_last_sent="${{ inputs.check_last_sent }}"
@@ -162,6 +168,7 @@ jobs:
       - name: Send to dev chat
         if: steps.prepare.outputs.send == 'true' && inputs.send_dev == true
         env:
+          LATEST_POST: ${{ steps.prepare.outputs.latest_post }}
           DEV_BOT_TOKEN: ${{ secrets.DEV_BOT_TOKEN }}
           DEV_CHAT_ID: ${{ secrets.DEV_CHAT_ID }}
           TWIR_SKIP_PRODUCTION_SEND: 'true'
@@ -169,29 +176,52 @@ jobs:
           set -euo pipefail
 
           rm -f output_*.md
-          cargo run --quiet --bin twir-deploy-notify -- "${{ steps.prepare.outputs.latest_post }}"
+          cargo run --quiet --bin twir-deploy-notify -- "$LATEST_POST"
+
+      - name: Restore durable production progress
+        if: steps.prepare.outputs.send == 'true' && inputs.send_main == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DELIVERY_STATE_KEY: production.json
+        run: |
+          status=0
+          python3 .github/scripts/delivery_state.py restore state/production.json || status=$?
+          if [ "$status" = 3 ]; then
+            mkdir -p state
+            printf '%s\n' '{"digest":"","parts":0,"target":"","message_ids":[]}' > state/production.json
+            python3 .github/scripts/delivery_state.py save state/production.json
+          elif [ "$status" != 0 ]; then
+            exit "$status"
+          fi
 
       - name: Send to main chat
         if: steps.prepare.outputs.send == 'true' && inputs.send_main == true
         env:
+          LATEST_POST: ${{ steps.prepare.outputs.latest_post }}
+          TWIR_DELIVERY_STATE: state/production.json
+          DELIVERY_CHECKPOINT: .github/scripts/delivery_state.py
+          DELIVERY_STATE_KEY: production.json
+          GH_TOKEN: ${{ github.token }}
           PROD_BOT_TOKEN: ${{ secrets.PROD_BOT_TOKEN }}
           PROD_CHAT_ID: ${{ secrets.PROD_CHAT_ID }}
           TWIR_SKIP_DEVELOPER_SEND: ${{ inputs.send_dev != true }}
         run: |
           set -euo pipefail
 
-          cargo run --quiet --bin twir-deploy-notify -- "${{ steps.prepare.outputs.latest_post }}"
+          cargo run --quiet --bin twir-deploy-notify -- "$LATEST_POST"
 
       - name: Save last_sent marker
+        env:
+          LATEST_POST: ${{ steps.prepare.outputs.latest_post }}
         if: steps.prepare.outputs.send == 'true' && (inputs.send_main == true || inputs.send_dev == true)
         run: |
           set -euo pipefail
 
-          echo "${{ steps.prepare.outputs.latest_post }}" > last_sent.txt
+          printf '%s\n' "$LATEST_POST" > last_sent.txt
 
       - name: Upload generated posts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: telegram-posts-${{ env.ARTIFACT_SCOPE }}
           path: output_*.md
@@ -201,7 +231,7 @@ jobs:
       # when the delivery itself failed, so the next run retries this issue.
       - name: Upload last_sent artifact
         if: success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: last-sent-${{ env.ARTIFACT_SCOPE }}
           path: last_sent.txt

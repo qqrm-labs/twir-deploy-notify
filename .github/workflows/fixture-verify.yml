@@ -23,6 +23,7 @@ permissions:
 env:
   CARGO_TERM_PROGRESS_WHEN: never
   RUST_LOG: info
+  FIXTURE: ${{ inputs.fixture }}
 
 jobs:
   verify:
@@ -32,16 +33,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v2
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2
         with:
           cache: false
           rustflags: ""
 
       - name: Cache Rust workspace
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           cache-bin: false
           cache-workspace-crates: true
@@ -52,7 +55,7 @@ jobs:
       - name: Validate fixture path
         run: |
           set -euo pipefail
-          test -f "tests/${{ inputs.fixture }}"
+          test -f "tests/$FIXTURE"
 
       - name: Send fixture to dev chat
         env:
@@ -63,7 +66,7 @@ jobs:
           set -euo pipefail
 
           rm -f output_*.md
-          cargo run --quiet --bin twir-deploy-notify -- "tests/${{ inputs.fixture }}"
+          cargo run --quiet --bin twir-deploy-notify -- "tests/$FIXTURE"
 
       - name: Verify delivered messages via getUpdates
         if: inputs.verify_updates == 'true'
@@ -73,11 +76,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          cargo run --quiet --bin verify-posts -- "tests/${{ inputs.fixture }}"
+          cargo run --quiet --bin verify-posts -- "tests/$FIXTURE"
 
       - name: Upload generated posts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: verified-fixture-posts
           path: output_*.md

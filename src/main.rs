@@ -1,3 +1,4 @@
+mod checkpoint;
 mod cli;
 mod generator;
 mod parser;

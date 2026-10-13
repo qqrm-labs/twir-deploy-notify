@@ -7,3 +7,10 @@ last_sent.txt
 
 .codex/AGENTS.remote.md
 .target/
+
+# Local delivery recovery markers and Python test cache
+*.pending
+*.checkpoint-tmp
+__pycache__/
+*.remote-sha
+*.remote-sha.tmp
