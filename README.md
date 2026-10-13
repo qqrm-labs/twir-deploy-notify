@@ -90,3 +90,5 @@ Cargo and Actions updates share a weekly Dependabot maintenance batch with a sev
 Existing release and delivery triggers are preserved. A merge performed using `GITHUB_TOKEN` does not guarantee a follow-up push workflow. Guaranteed automatic post-merge releases need a separate GitHub App token or verified release controller; this change does not claim that coverage.
 
 TWIR checkpoints contain only content/target hashes, part count and acknowledged Telegram message IDs. A changed unfinished issue or target is rejected. The existing channel pin guard remains active; pinning happens after the entire issue is durable. Only a service message whose chat and pinned message ID match is eligible for deletion. For reconciliation, append a verified message ID to the ordered `message_ids` list; never invent one.
+
+Every mutation compares the remote blob SHA with the snapshot recorded at restore (or the prior successful write). A stale runner cannot replace newer progress, even across branches; a SHA conflict stops before another send.

@@ -12,3 +12,5 @@ last_sent.txt
 *.pending
 *.checkpoint-tmp
 __pycache__/
+*.remote-sha
+*.remote-sha.tmp
