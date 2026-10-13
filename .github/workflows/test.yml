@@ -105,7 +105,7 @@ jobs:
           rustflags: ""
 
       - name: Install cargo-machete
-        uses: taiki-e/install-action@v2.87.22
+        uses: taiki-e/install-action@v2.87.27
         with:
           tool: cargo-machete
 
@@ -165,7 +165,7 @@ jobs:
             . -> target
 
       - name: Install tarpaulin
-        uses: taiki-e/install-action@v2.87.22
+        uses: taiki-e/install-action@v2.87.27
         with:
           tool: cargo-tarpaulin
 
