@@ -90,7 +90,7 @@ jobs:
             . -> target
 
       - name: Run cargo test
-        run: cargo test --locked --quiet --lib --bins --tests --all-features -- --test-threads=$(nproc)
+        run: cargo test --locked --quiet --lib --bins --tests --all-features -- --test-threads="$(nproc)"
 
   machete:
     name: Cargo machete
