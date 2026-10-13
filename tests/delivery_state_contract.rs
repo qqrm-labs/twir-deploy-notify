@@ -95,7 +95,7 @@ fn delivery_workflow_writes_the_marker_only_after_a_delivery() {
     for required in [
         "- name: Save last_sent marker",
         "steps.prepare.outputs.send == 'true' && (inputs.send_main == true || inputs.send_dev == true)",
-        "echo \"${{ steps.prepare.outputs.latest_post }}\" > last_sent.txt",
+        "printf '%s\\n' \"$LATEST_POST\" > last_sent.txt",
         "- name: Upload last_sent artifact",
         "name: last-sent-${{ env.ARTIFACT_SCOPE }}",
         "path: last_sent.txt",

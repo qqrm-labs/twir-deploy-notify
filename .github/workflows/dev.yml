@@ -15,7 +15,14 @@ jobs:
   notify:
     name: TWIR dev summary delivery
     uses: ./.github/workflows/common-delivery.yml
-    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+    secrets:
+      DEV_BOT_TOKEN: ${{ secrets.DEV_BOT_TOKEN }}
+      DEV_CHAT_ID: ${{ secrets.DEV_CHAT_ID }}
+      PROD_BOT_TOKEN: ${{ secrets.PROD_BOT_TOKEN }}
+      PROD_CHAT_ID: ${{ secrets.PROD_CHAT_ID }}
     with:
       scope: dev
       send_main: false

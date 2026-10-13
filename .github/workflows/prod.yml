@@ -8,10 +8,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 jobs:
@@ -57,8 +57,9 @@ jobs:
           echo "::warning::No recent production run yielded a last_sent marker; continuing without cached state." >&2
 
       - name: Checkout TWIR
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: rust-lang/this-week-in-rust
           path: twir
           fetch-depth: 1
@@ -71,7 +72,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          latest_post=$(ls twir/content/*-this-week-in-rust*.md | sort | tail -n 1)
+          posts=(twir/content/*-this-week-in-rust*.md)
+          latest_post="${posts[-1]}"
+          test -f "$latest_post"
           echo "latest_post=$latest_post" >> "$GITHUB_OUTPUT"
 
           last_sent=$(cat last_sent.txt 2>/dev/null || echo "")
@@ -86,16 +89,18 @@ jobs:
       # marker went missing, materialize it from the latest post — a no-op
       # decision already means that post counts as delivered.
       - name: Preserve last_sent marker when delivery is not needed
+        env:
+          LATEST_POST: ${{ steps.decide.outputs.latest_post }}
         if: steps.decide.outputs.should_send == 'false'
         run: |
           set -euo pipefail
           if [ ! -s last_sent.txt ]; then
-            echo "${{ steps.decide.outputs.latest_post }}" > last_sent.txt
+            echo "$LATEST_POST" > last_sent.txt
           fi
 
       - name: Upload preserved last_sent marker
         if: steps.decide.outputs.should_send == 'false'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: last-sent-prod
           path: last_sent.txt
@@ -106,7 +111,14 @@ jobs:
     needs: evaluate-latest
     if: needs.evaluate-latest.outputs.should_send == 'true'
     uses: ./.github/workflows/common-delivery.yml
-    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+    secrets:
+      DEV_BOT_TOKEN: ${{ secrets.DEV_BOT_TOKEN }}
+      DEV_CHAT_ID: ${{ secrets.DEV_CHAT_ID }}
+      PROD_BOT_TOKEN: ${{ secrets.PROD_BOT_TOKEN }}
+      PROD_CHAT_ID: ${{ secrets.PROD_CHAT_ID }}
     with:
       scope: dev
       send_main: false
@@ -120,7 +132,14 @@ jobs:
       - notify-dev
     if: needs.evaluate-latest.outputs.should_send == 'true'
     uses: ./.github/workflows/common-delivery.yml
-    secrets: inherit
+    permissions:
+      contents: write
+      actions: read
+    secrets:
+      DEV_BOT_TOKEN: ${{ secrets.DEV_BOT_TOKEN }}
+      DEV_CHAT_ID: ${{ secrets.DEV_CHAT_ID }}
+      PROD_BOT_TOKEN: ${{ secrets.PROD_BOT_TOKEN }}
+      PROD_CHAT_ID: ${{ secrets.PROD_CHAT_ID }}
     with:
       scope: prod
       send_main: true
