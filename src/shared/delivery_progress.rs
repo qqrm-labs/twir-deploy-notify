@@ -3,6 +3,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{io, path::Path};
 
+fn fingerprint(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct Progress {
     pub digest: String,
@@ -14,15 +21,9 @@ pub struct Progress {
 impl Progress {
     pub fn new(posts: &[String], chat_id: &str) -> Self {
         Self {
-            digest: format!(
-                "{:x}",
-                Sha256::digest(serde_json::to_vec(posts).expect("serializable strings"))
-            ),
+            digest: fingerprint(&serde_json::to_vec(posts).expect("serializable strings")),
             parts: posts.len(),
-            target: format!(
-                "{:x}",
-                Sha256::digest(super::generator_shared::normalize_chat_id(chat_id).as_bytes())
-            ),
+            target: fingerprint(super::generator_shared::normalize_chat_id(chat_id).as_bytes()),
             message_ids: Vec::new(),
         }
     }
@@ -71,6 +72,14 @@ impl Progress {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sha2_upgrade_preserves_existing_fingerprint_encoding() {
+        assert_eq!(
+            fingerprint(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
 
     #[test]
     fn resumes_exact_parts_and_rejects_changed_partial_issue_or_target() {
