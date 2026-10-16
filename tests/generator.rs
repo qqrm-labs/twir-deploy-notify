@@ -252,7 +252,7 @@ fn compact_summary_without_separator_renders_as_code_block() {
     let combined = posts.join("\n");
     assert!(combined.contains("Summary:"));
     assert!(combined.contains("```\n(instructions:u)\n| kind"));
-    assert!(combined.contains("| Reg x (prim)"));
+    assert!(combined.contains("| Reg x (prm)"));
     assert!(combined.contains("0 Regressions, 6 Improvements, 3 Mixed; 5 of them in rollups"));
     common::assert_valid_markdown(&combined);
 }

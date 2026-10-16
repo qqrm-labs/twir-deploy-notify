@@ -90,10 +90,10 @@ fn regression_table_compact() {
         block
             .lines()
             .filter(|line| line.starts_with('|'))
-            .all(|line| line.len() == 45)
+            .all(|line| line.len() == 44)
     );
-    assert!(block.contains("| Reg x prim  | 0.4%  | [0.1%,0.9%]   | 47  |"));
-    assert!(block.contains("| All xv prim | -0.5% | [-4.1%,0.9%]  | 169 |"));
+    assert!(block.contains("| Reg x prm  | 0.4%  | [0.1%,0.9%]   | 47  |"));
+    assert!(block.contains("| All xv prm | -0.5% | [-4.1%,0.9%]  | 169 |"));
     assert!(block.contains("| -----"));
     assert!(!block.contains("\\|"));
 }
@@ -108,7 +108,7 @@ fn compact_summary_table_without_separator_becomes_code_block() {
     assert_eq!(lines[0], "Summary:");
     assert!(lines[1].starts_with("```\n"));
     assert!(lines[1].contains("\n(instructions:u)\n| kind"));
-    assert!(lines[1].contains("| Reg x (prim)"));
+    assert!(lines[1].contains("| Reg x (prm)"));
     assert!(lines[1].contains("| ----"));
     assert_eq!(
         lines[2],

@@ -248,7 +248,15 @@ fn render_table_as_code_block(table: &[Vec<String>]) -> Option<String> {
         let metric = std::mem::replace(&mut rows[0][0], "kind".to_string());
         rows[0][3] = "n".to_string();
         for row in rows.iter_mut().skip(1) {
-            row[0] = row[0].split_whitespace().collect::<Vec<_>>().join(" ");
+            row[0] = row[0]
+                .split_whitespace()
+                .map(|part| match part {
+                    "prim" => "prm",
+                    "(prim)" => "(prm)",
+                    _ => part,
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
             row[2] = row[2].replace(", ", ",");
         }
         Some(metric)
