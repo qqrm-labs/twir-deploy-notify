@@ -17,13 +17,14 @@ A week dominated by the landing of a large patch implementing [RFC\#3729](https:
 Triage done by [rylev](https://github.com/rylev)\. Revision range: [45acf54e\.\.42245d34](https://perf.rust-lang.org/?start=45acf54eea118ed27927282b5e0bfdcd80b7987c&end=42245d34d22ade32b3f276dcf74deb826841594c&absolute=false&stat=instructions%3Au)
 Summary:
 ```
-| (instructions:u) | mean  | range           | count |
-| ---------------- | ----- | --------------- | ----- |
-| Reg x  (prim)    | 1.1%  | [0.2%, 9.1%]    | 123   |
-| Reg x  (sec)     | 1.0%  | [0.1%, 4.6%]    | 86    |
-| Imp v  (prim)    | -3.8% | [-7.3%, -0.3%]  | 2     |
-| Imp v  (sec)     | -2.3% | [-18.5%, -0.2%] | 44    |
-| All xv (prim)    | 1.0%  | [-7.3%, 9.1%]   | 125   |
+(instructions:u)
+| kind         | mean  | range          | n   |
+| ------------ | ----- | -------------- | --- |
+| Reg x (prm)  | 1.1%  | [0.2%,9.1%]    | 123 |
+| Reg x (sec)  | 1.0%  | [0.1%,4.6%]    | 86  |
+| Imp v (prm)  | -3.8% | [-7.3%,-0.3%]  | 2   |
+| Imp v (sec)  | -2.3% | [-18.5%,-0.2%] | 44  |
+| All xv (prm) | 1.0%  | [-7.3%,9.1%]   | 125 |
 ```
 2 Regressions, 4 Improvements, 10 Mixed; 7 of them in rollups 40 artifact comparisons made in total
 [Full report here](https://github.com/rust-lang/rustc-perf/blob/a63db4d1799853b334e4106d914fba24e49c8782/triage/2025/2025-06-24.md)

@@ -62,10 +62,17 @@ fn regression_table_ascii_aligned() {
     let block = &lines[0];
     assert!(block.starts_with("```\n"));
     assert!(block.ends_with("\n```"));
-    let body: Vec<&str> = block.lines().filter(|line| *line != "```").collect();
+    let body: Vec<&str> = block.lines().filter(|line| line.starts_with('|')).collect();
+    assert_eq!(body.len(), 7);
+    let separators: Vec<_> = body[0].match_indices('|').map(|(idx, _)| idx).collect();
     for line in body {
         assert!(line.is_ascii());
-        assert!(line.contains('|'));
+        assert_eq!(
+            line.match_indices('|')
+                .map(|(idx, _)| idx)
+                .collect::<Vec<_>>(),
+            separators
+        );
     }
 }
 
@@ -78,7 +85,15 @@ fn regression_table_compact() {
     assert_eq!(lines.len(), 1);
     let block = &lines[0];
     assert!(block.starts_with("```"));
-    assert!(block.contains("| (instructions:u)"));
+    assert!(block.contains("\n(instructions:u)\n| kind"));
+    assert!(
+        block
+            .lines()
+            .filter(|line| line.starts_with('|'))
+            .all(|line| line.len() == 44)
+    );
+    assert!(block.contains("| Reg x prm  | 0.4%  | [0.1%,0.9%]   | 47  |"));
+    assert!(block.contains("| All xv prm | -0.5% | [-4.1%,0.9%]  | 169 |"));
     assert!(block.contains("| -----"));
     assert!(!block.contains("\\|"));
 }
@@ -92,8 +107,8 @@ fn compact_summary_table_without_separator_becomes_code_block() {
     let lines = &sections[0].lines;
     assert_eq!(lines[0], "Summary:");
     assert!(lines[1].starts_with("```\n"));
-    assert!(lines[1].contains("| (instructions:u)"));
-    assert!(lines[1].contains("| Reg x  (prim)"));
+    assert!(lines[1].contains("\n(instructions:u)\n| kind"));
+    assert!(lines[1].contains("| Reg x (prm)"));
     assert!(lines[1].contains("| ----"));
     assert_eq!(
         lines[2],
