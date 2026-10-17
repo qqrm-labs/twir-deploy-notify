@@ -2,7 +2,6 @@
 
 📰 **JOBS** 📰
 🦀 [Rust Job Reddit Thread](https://www.reddit.com/r/rust/comments/1nknaii/official_rrust_whos_hiring_thread_for_jobseekers/)
-📢 [Rust Jobs feed](https://t.me/rust_jobs_feed)
 📝 [Rust HH jobs](https://t.me/rusthhjobs)
 
 **Quote of the Week:** 💬

@@ -521,17 +521,11 @@ fn preprocess_issue_input(input: String) -> String {
     input.replace("_Полный выпуск: ссылка_", "")
 }
 
-fn jobs_resources() -> [String; 2] {
-    [
-        format!(
-            "📢 [Rust Jobs feed]({})",
-            escape_markdown_url("https://t.me/rust_jobs_feed")
-        ),
-        format!(
-            "📝 [Rust HH jobs]({})",
-            escape_markdown_url("https://t.me/rusthhjobs")
-        ),
-    ]
+fn jobs_resources() -> [String; 1] {
+    [format!(
+        "📝 [Rust HH jobs]({})",
+        escape_markdown_url("https://t.me/rusthhjobs")
+    )]
 }
 
 fn transform_section(section: &mut Section) {
