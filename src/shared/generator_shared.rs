@@ -358,6 +358,33 @@ impl std::fmt::Display for ValidationError {
 
 impl std::error::Error for ValidationError {}
 
+fn message_units(text: &str, limit: usize) -> Vec<&str> {
+    use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
+
+    let mut units = Vec::new();
+    let mut start = 0;
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        if matches!(
+            event,
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(_)))
+        ) {
+            let block = text[range.clone()].trim_end_matches(['\r', '\n']);
+            if block.len() <= limit {
+                units.extend(text[start..range.start].lines());
+                units.push(block);
+                start = range.start + block.len();
+                if text[start..].starts_with("\r\n") {
+                    start += 2;
+                } else if text[start..].starts_with('\n') {
+                    start += 1;
+                }
+            }
+        }
+    }
+    units.extend(text[start..].lines());
+    units
+}
+
 /// Split a long message into chunks that obey Telegram's length limit.
 ///
 /// The function walks through the input line by line and builds a vector of
@@ -368,6 +395,9 @@ impl std::error::Error for ValidationError {}
 /// Markdown control character, it is prefixed with a backslash to keep the
 /// formatting intact. Newlines are inserted between lines unless a trailing
 /// backslash caused the next line to be joined.
+/// Fenced blocks that fit in one message are kept intact, moving to the next
+/// message when necessary. Oversized ordinary code keeps the line-based fallback;
+/// generated tables are checked against the budget before reaching this function.
 ///
 /// # Parameters
 /// - `text`: The text to split.
@@ -385,7 +415,7 @@ pub fn split_posts(text: &str, limit: usize) -> Vec<String> {
         matches!(c, '-' | '>' | '#' | '+' | '=' | '{' | '}' | '.' | '!')
     }
 
-    for line in text.lines() {
+    for line in message_units(text, limit) {
         if line.trim() == "```" {
             let extra = if current.is_empty() { 3 } else { 4 };
             if current.len() + extra > limit && !current.is_empty() {
@@ -577,16 +607,38 @@ fn bundle_sections_into_posts(sections: &[Section], header: &str) -> Vec<String>
     posts
 }
 
-fn split_posts_to_telegram_limit(posts: Vec<String>) -> Vec<String> {
-    let mut final_posts = Vec::new();
-    for post in posts {
-        if post.len() > TELEGRAM_LIMIT {
-            final_posts.extend(split_posts(&post, TELEGRAM_LIMIT));
-        } else {
-            final_posts.push(post);
+fn split_posts_to_telegram_limit(
+    posts: Vec<String>,
+    max_table_bytes: usize,
+) -> Result<Vec<String>, ValidationError> {
+    let mut overhead = 1; // Every finalized post ends in a newline.
+    loop {
+        let body_limit = TELEGRAM_LIMIT - overhead;
+        if max_table_bytes > body_limit {
+            return Err(ValidationError(format!(
+                "Table requires {max_table_bytes} bytes but a message has {body_limit} available; refusing to split the table"
+            )));
         }
+
+        let mut final_posts = Vec::new();
+        for post in &posts {
+            if post.len() > body_limit {
+                final_posts.extend(split_posts(post, body_limit));
+            } else {
+                final_posts.push(post.clone());
+            }
+        }
+        let total = final_posts.len();
+        let required = if total > 1 {
+            format!("*Part {total}/{total}*\n\n").len() + 1
+        } else {
+            1
+        };
+        if required <= overhead {
+            return Ok(final_posts);
+        }
+        overhead = required;
     }
-    final_posts
 }
 
 fn finalize_posts(posts: Vec<String>) -> Result<Vec<String>, ValidationError> {
@@ -607,6 +659,12 @@ fn finalize_posts(posts: Vec<String>) -> Result<Vec<String>, ValidationError> {
                 post.trim_start_matches('\n')
             )
         };
+        if formatted.len() > TELEGRAM_LIMIT {
+            return Err(ValidationError(format!(
+                "Generated post {} exceeds the {TELEGRAM_LIMIT}-byte limit",
+                index + 1
+            )));
+        }
         validate_telegram_markdown(&formatted)
             .map_err(|e| ValidationError(format!("Generated post {} invalid: {e}", index + 1)))?;
         result.push(formatted);
@@ -631,8 +689,13 @@ pub fn generate_posts(input: String) -> Result<Vec<String>, ValidationError> {
     let input = preprocess_issue_input(input);
     let body = strip_header(&input);
     let sections = prepare_sections(&body, metadata.url.as_deref());
+    let max_table_bytes = sections
+        .iter()
+        .map(|section| section.max_table_bytes)
+        .max()
+        .unwrap_or(0);
     let bundled = bundle_sections_into_posts(&sections, &metadata.header());
-    let split = split_posts_to_telegram_limit(bundled);
+    let split = split_posts_to_telegram_limit(bundled, max_table_bytes)?;
     finalize_posts(split)
 }
 

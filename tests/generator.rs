@@ -246,6 +246,91 @@ fn table_compact_format() {
 }
 
 #[test]
+fn table_moves_whole_when_remaining_space_is_one_byte_short() {
+    let sections = twir_deploy_notify::parser::parse_sections(include_str!("regression_table.md"));
+    let table = &sections[0].lines[0];
+    let prefix = "intro";
+    let input = format!("{prefix}\n{table}");
+    assert_eq!(split_posts(&input, input.len()), vec![input.clone()]);
+    assert_eq!(
+        split_posts(&input, input.len() - 1),
+        vec![prefix.to_string(), table.clone()]
+    );
+    assert_eq!(split_posts(table, table.len()), vec![table.clone()]);
+}
+
+#[test]
+fn consecutive_tables_remain_complete_without_empty_posts() {
+    let table = "```\n| A | B |\n| - | - |\n| 1 | 2 |\n```";
+    let input = format!("{table}\n{table}\nafter");
+    assert_eq!(split_posts(&input, input.len()), vec![input.clone()]);
+    let posts = split_posts(&input, table.len());
+    assert_eq!(posts, vec![table, table, "after"]);
+    for post in &posts {
+        common::assert_valid_markdown(post);
+    }
+}
+
+#[test]
+fn generated_performance_table_stays_in_one_message() {
+    let source = include_str!("regression_table.md");
+    let sections = twir_deploy_notify::parser::parse_sections(source);
+    let table = &sections[0].lines[0];
+    let input = format!(
+        "Title: Test\nNumber: 1\nDate: 2026-10-14\n\n## Perf\n{}\n\n{}",
+        "a".repeat(TELEGRAM_LIMIT - 150),
+        source.strip_prefix("## Perf\n").unwrap()
+    );
+    let posts = generate_posts(input).unwrap();
+    assert!(!posts[0].contains("(instructions:u)"));
+    assert!(posts[1].contains(table));
+    assert_eq!(posts.iter().filter(|post| post.contains(table)).count(), 1);
+    for post in &posts {
+        assert!(post.len() <= TELEGRAM_LIMIT);
+        common::assert_valid_markdown(post);
+    }
+}
+
+#[test]
+fn table_that_cannot_fit_with_part_header_fails_generation() {
+    // The rendered table fits the raw limit, but not a numbered message.
+    let input = format!(
+        "## Table\n| A | B |\n| - | - |\n| {} | 1 |\n",
+        "x".repeat(1321)
+    );
+    let sections = twir_deploy_notify::parser::parse_sections(&input);
+    let table = &sections[0].lines[0];
+    assert!(table.len() < TELEGRAM_LIMIT);
+    assert!(table.len() + "*Part 2/2*\n\n".len() > TELEGRAM_LIMIT);
+    let error = generate_posts(input).unwrap_err();
+    assert!(error.to_string().contains("refusing to split the table"));
+}
+
+#[test]
+fn oversized_table_fails_generation() {
+    let input = format!(
+        "## Table\n| A | B |\n| - | - |\n{}",
+        "| row | value |\n".repeat(300)
+    );
+    let error = generate_posts(input).unwrap_err();
+    assert!(error.to_string().contains("refusing to split the table"));
+}
+
+#[test]
+fn unicode_posts_reserve_space_for_two_digit_part_numbers() {
+    let input = (0..10)
+        .map(|index| format!("## Section {index}\n{}\n", "Я".repeat(1978)))
+        .collect::<String>();
+    let posts = generate_posts(input).unwrap();
+    assert!(posts.len() >= 10);
+    assert!(posts.last().unwrap().starts_with("*Part 10/10*"));
+    for post in &posts {
+        assert!(post.len() <= TELEGRAM_LIMIT);
+        common::assert_valid_markdown(post);
+    }
+}
+
+#[test]
 fn compact_summary_without_separator_renders_as_code_block() {
     let input = "Title: Test\nNumber: 1\nDate: 2025-01-01\n\n## Perf\nSummary:\n| (instructions:u) | mean | range | count |\n| Reg x  (prim) | 0.4% | [0.4%, 0.5%] | 3 |\n| Reg x  (sec) | 0.6% | [0.1%, 1.2%] | 8 |\n| Imp v  (prim) | -0.9% | [-2.5%, -0.1%] | 110 |\n| Imp v  (sec) | -0.8% | [-2.7%, -0.1%] | 77 |\n| All xv (prim) | -0.9% | [-2.5%, 0.5%] | 113 |\n0 Regressions, 6 Improvements, 3 Mixed; 5 of them in rollups\n31 artifact comparisons made in total\n";
     let posts = generate_posts(input.to_string()).unwrap();

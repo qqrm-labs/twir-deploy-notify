@@ -19,6 +19,10 @@ The crate turns "This Week in Rust" Markdown into Telegram posts.
 ## Posts
 - Each section forms a post capped at 4000 characters.
 - `split_posts` divides long messages and prefixes later posts with `*Part X/Y*`.
+- Tables stay in one message, including their caption, header, and rows. If a
+  table does not fit in the remaining space, it moves to the next message.
+  The size budget includes the part prefix and final newline. A table too large
+  for a single message fails generation before delivery instead of being split.
 - The `--plain` flag strips formatting for plain text destinations.
 
 ## Telegram Delivery Flow
