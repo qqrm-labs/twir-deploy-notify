@@ -8,6 +8,8 @@ use teloxide::utils::markdown::escape;
 pub struct Section {
     pub title: String,
     pub lines: Vec<String>,
+    /// Largest rendered table, including its caption and code fences.
+    pub(crate) max_table_bytes: usize,
 }
 
 fn fix_bare_link(line: &str) -> String {
@@ -364,7 +366,7 @@ pub fn parse_sections(text: &str) -> Vec<Section> {
                 if level == HeadingLevel::H2 {
                     current = Some(Section {
                         title: raw.to_string(),
-                        lines: Vec::new(),
+                        ..Section::default()
                     });
                     buffer.clear();
                 } else if matches!(
@@ -438,6 +440,7 @@ pub fn parse_sections(text: &str) -> Vec<Section> {
                 if let Some(ref mut sec) = current
                     && let Some(block) = render_table_as_code_block(&table)
                 {
+                    sec.max_table_bytes = sec.max_table_bytes.max(block.len());
                     sec.lines.push(block);
                 }
                 table.clear();

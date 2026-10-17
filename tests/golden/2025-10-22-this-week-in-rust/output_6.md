@@ -1,11 +1,17 @@
-*Part 6/7*
+*Part 6/6*
 
-• [Rename //@ add\-core\-stubs to //@ add\-minicore](https://github.com/rust-lang/compiler-team/issues/930)
-• [Move annotation for profiling compiler\-generated moves and copies\.](https://github.com/rust-lang/compiler-team/issues/928)
-• [Use llvm\-bitcode\-linker as the default linker for nvptx64\-nvidia\-cuda](https://github.com/rust-lang/compiler-team/issues/927)
-[Leadership Council](https://github.com/rust-lang/leadership-council/issues?q=state%3Aopen%20label%3Afinal-comment-period)
-• [Delegate GSoC money spending to the t\-mentorship team](https://github.com/rust-lang/leadership-council/issues/232)
-No Items entered Final Comment Period this week for [Rust RFCs](https://github.com/rust-lang/rfcs/labels/final-comment-period), [Cargo](https://github.com/rust-lang/cargo/issues?q=is%3Aopen+label%3Afinal-comment-period+sort%3Aupdated-desc), [Language Team](https://github.com/rust-lang/lang-team/issues?q=is%3Aopen+label%3Afinal-comment-period+sort%3Aupdated-desc+), [Language Reference](https://github.com/rust-lang/reference/issues?q=is%3Aopen+label%3Afinal-comment-period+sort%3Aupdated-desc) or [Unsafe Code Guidelines](https://github.com/rust-lang/unsafe-code-guidelines/issues?q=is%3Aopen+label%3Afinal-comment-period+sort%3Aupdated-desc)\.
-Let us know if you would like your PRs, Tracking Issues or RFCs to be tracked as a part of this list\.
-**[New and Updated RFCs](https://github.com/rust-lang/rfcs/pulls)**
-• No New or Updated RFCs were created this week\.
+📰 **JOBS** 📰
+🦀 [Rust Job Reddit Thread](https://www.reddit.com/r/rust/comments/1nknaii/official_rrust_whos_hiring_thread_for_jobseekers/)
+📢 [Rust Jobs feed](https://t.me/rust_jobs_feed)
+📝 [Rust HH jobs](https://t.me/rusthhjobs)
+
+**Quote of the Week:** 💬
+
+_There used to be recurring questions about mod vs use in the user forum, until I've added a note to the error message \[\.\.\.\] and I think it largely solved the problem_
+– [Kornel on rust\-internals](https://internals.rust-lang.org/t/curly-brace-support-for-mod/23437/51)
+
+This Week in Rust is edited by: [nellshamrell](https://github.com/nellshamrell), [llogiq](https://github.com/llogiq), [cdmistman](https://github.com/cdmistman), [ericseppanen](https://github.com/ericseppanen), [extrawurst](https://github.com/extrawurst), [U007D](https://github.com/U007D), [joelmarcey](https://github.com/joelmarcey), [mariannegoldin](https://github.com/mariannegoldin), [bennyvasquez](https://github.com/bennyvasquez), [bdillo](https://github.com/bdillo)
+Email list hosting is sponsored by [The Rust Foundation](https://foundation.rust-lang.org/)
+[Discuss on r/rust](https://www.reddit.com/r/rust/comments/1odqrri/this_week_in_rust_622/)
+
+🌐 [View web version](https://this-week-in-rust.org/blog/2025/10/22/this-week-in-rust-622/) 🌐
