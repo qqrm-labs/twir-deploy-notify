@@ -17,12 +17,16 @@ The crate turns "This Week in Rust" Markdown into Telegram posts.
 4. A final link to the web version is derived from the date and number.
 
 ## Posts
-- Each section forms a post capped at 4000 characters.
-- `split_posts` divides long messages and prefixes later posts with `*Part X/Y*`.
+- Sections are bundled into messages with a conservative 4000-byte budget.
+- Long bundles are split, and later messages are prefixed with `*Part X/Y*`.
 - Tables stay in one message, including their caption, header, and rows. If a
   table does not fit in the remaining space, it moves to the next message.
   The size budget includes the part prefix and final newline. A table too large
   for a single message fails generation before delivery instead of being split.
+- After splitting, fragments of up to 500 bytes are joined to the preceding
+  message when they fit, or to the following message when that fits. Joining
+  preserves content order and whole tables, includes a blank-line separator in
+  the budget, and happens before final part numbering.
 - The `--plain` flag strips formatting for plain text destinations.
 
 ## Telegram Delivery Flow

@@ -607,6 +607,28 @@ fn bundle_sections_into_posts(sections: &[Section], header: &str) -> Vec<String>
     posts
 }
 
+fn merge_short_posts(posts: Vec<String>, limit: usize) -> Vec<String> {
+    const SHORT_POST_BYTES: usize = TELEGRAM_LIMIT / 8;
+    let mut merged: Vec<String> = Vec::with_capacity(posts.len());
+    for post in posts {
+        if let Some(previous) = merged.last_mut() {
+            let left = previous.trim_end_matches('\n');
+            let right = post.trim_start_matches('\n');
+            // Keep section boundaries unless one side is only a short fragment.
+            if (left.len() <= SHORT_POST_BYTES || right.len() <= SHORT_POST_BYTES)
+                && left.len() + 2 + right.len() <= limit
+            {
+                previous.truncate(left.len());
+                previous.push_str("\n\n");
+                previous.push_str(right);
+                continue;
+            }
+        }
+        merged.push(post);
+    }
+    merged
+}
+
 fn split_posts_to_telegram_limit(
     posts: Vec<String>,
     max_table_bytes: usize,
@@ -628,6 +650,7 @@ fn split_posts_to_telegram_limit(
                 final_posts.push(post.clone());
             }
         }
+        let final_posts = merge_short_posts(final_posts, body_limit);
         let total = final_posts.len();
         let required = if total > 1 {
             format!("*Part {total}/{total}*\n\n").len() + 1
@@ -1261,6 +1284,69 @@ mod tests {
         let text = "aaa\nbbb\nccc";
         let parts = split_posts(text, 7);
         assert_eq!(parts, vec!["aaa\nbbb", "ccc"]);
+    }
+
+    #[test]
+    fn short_post_joins_previous_at_exact_limit() {
+        let previous = "a".repeat(1000);
+        let short = "b".repeat(100);
+        let posts = vec![format!("{previous}\n"), format!("\n{short}")];
+        assert_eq!(
+            merge_short_posts(posts.clone(), 1102),
+            vec![format!("{previous}\n\n{short}")]
+        );
+        // The separator counts toward the message budget.
+        assert_eq!(merge_short_posts(posts.clone(), 1101), posts);
+    }
+
+    #[test]
+    fn short_post_joins_next_when_previous_has_no_room() {
+        let previous = "a".repeat(3900);
+        let short = "b".repeat(100);
+        let next = "c".repeat(1000);
+        assert_eq!(
+            merge_short_posts(vec![previous.clone(), short.clone(), next.clone()], 3988),
+            vec![previous, format!("{short}\n\n{next}")]
+        );
+    }
+
+    #[test]
+    fn short_post_stays_separate_when_neither_neighbor_fits() {
+        let posts = vec!["a".repeat(3900), "b".repeat(100), "c".repeat(3900)];
+        assert_eq!(merge_short_posts(posts.clone(), 3988), posts);
+    }
+
+    #[test]
+    fn non_short_posts_keep_their_section_boundary() {
+        let posts = vec!["a".repeat(1000), "b".repeat(1000)];
+        assert_eq!(merge_short_posts(posts.clone(), 3988), posts);
+    }
+
+    #[test]
+    fn consecutive_short_posts_merge_without_changing_table_content() {
+        let table = "```\n| A | B |\n| - | - |\n| 1 | 2 |\n```";
+        let posts = vec!["before".into(), table.into(), "after".into()];
+        assert_eq!(
+            merge_short_posts(posts, 3988),
+            vec![format!("before\n\n{table}\n\nafter")]
+        );
+    }
+
+    #[test]
+    fn short_overflow_is_merged_before_final_part_numbering() {
+        let first = "a".repeat(3900);
+        let overflow = "b".repeat(100);
+        let next = "c".repeat(1000);
+        let bundled = vec![format!("{first}\n{overflow}"), next.clone()];
+        let posts = finalize_posts(split_posts_to_telegram_limit(bundled, 0).unwrap()).unwrap();
+        assert_eq!(
+            posts,
+            vec![
+                format!("{first}\n"),
+                format!("*Part 2/2*\n\n{overflow}\n\n{next}\n")
+            ]
+        );
+        assert!(posts.iter().all(|post| post.len() <= TELEGRAM_LIMIT));
     }
 
     #[test]
