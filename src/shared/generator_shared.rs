@@ -1,9 +1,9 @@
+use crate::shared::markdown::escape;
 use log::{debug, error, info, warn};
 use phf::phf_map;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::{borrow::Cow, fs, path::Path, thread, time::Duration};
-use teloxide::utils::markdown::escape;
 
 use crate::parser::{Section, parse_sections};
 use crate::validator::validate_telegram_markdown;

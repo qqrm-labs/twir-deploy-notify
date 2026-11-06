@@ -1,7 +1,7 @@
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::generator::{escape_markdown_url, format_subheading};
-use teloxide::utils::markdown::escape;
+use crate::shared::markdown::escape;
 
 /// Representation of a single TWIR section.
 #[derive(Default)]
