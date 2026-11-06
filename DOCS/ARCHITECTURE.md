@@ -90,4 +90,5 @@ pin, or a pin with no issue number) lets an unverifiable input through.
 
 ## Key crates
 - `pulldown-cmark` for Markdown parsing.
-- `teloxide` and `reqwest` for Telegram interactions.
+- `reqwest` for Telegram interactions.
+- Shared MarkdownV2 text escaping keeps reserved characters literal in generated posts.
