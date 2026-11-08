@@ -12,6 +12,8 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: qqrm-labs/.github/.github/workflows/security.yml@4dd4f16cb5864bc7b1afee7b5f0c617461fd58ba
+    uses: qqrm-labs/.github/.github/workflows/security.yml@e92efba3e5c6602e28860d91aa6d77c8f2c73b7c
     with:
-      language: rust
+      # GitHub Default setup owns CodeQL; AppSec verifies its native analysis.
+      language: rust,actions
+      codeql-mode: default
