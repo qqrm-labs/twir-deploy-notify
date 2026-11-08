@@ -1,0 +1,19 @@
+name: AppSec
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: qqrm-labs/.github/.github/workflows/security.yml@e92efba3e5c6602e28860d91aa6d77c8f2c73b7c
+    with:
+      # GitHub Default setup owns CodeQL; AppSec verifies its native analysis.
+      language: rust,actions
+      codeql-mode: default
