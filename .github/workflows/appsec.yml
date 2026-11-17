@@ -1,9 +1,11 @@
 name: AppSec
 on:
   push:
-    branches: ["**"]
+    branches: [main, checks]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '37 3 * * 2'
 permissions:
   contents: read
 jobs:
@@ -12,8 +14,8 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: qqrm-labs/.github/.github/workflows/security.yml@e92efba3e5c6602e28860d91aa6d77c8f2c73b7c
+    uses: qqrm-labs/.github/.github/workflows/security.yml@8378b923612b318969f356dd4b900ff469f7de94
     with:
-      # GitHub Default setup owns CodeQL; AppSec verifies its native analysis.
+      # Run CodeQL for every PR, including dependency and toolchain changes.
       language: rust,actions
-      codeql-mode: default
+      codeql-mode: advanced
